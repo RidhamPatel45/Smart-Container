@@ -1,0 +1,66 @@
+version: "3.8"
+
+services:
+  # ── MongoDB ──────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: smartcontainer-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - smartcontainer
+
+  # ── FastAPI ML Backend ───────────────────────
+  backend:
+    build: ./backend
+    container_name: smartcontainer-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./models:/models:ro
+      - ./data:/data:ro
+    depends_on:
+      - mongo
+    networks:
+      - smartcontainer
+
+  # ── Express.js Server ────────────────────────
+  server:
+    build: ./server
+    container_name: smartcontainer-server
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file: .env
+    environment:
+      - ML_SERVICE_URL=http://backend:8000
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/smartcontainer}
+    depends_on:
+      - mongo
+      - backend
+    networks:
+      - smartcontainer
+
+  # ── React Frontend (Vite + Nginx) ────────────
+  frontend:
+    build: ./frontend
+    container_name: smartcontainer-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - smartcontainer
+
+volumes:
+  mongo_data:
+
+networks:
+  smartcontainer:
+    driver: bridge
